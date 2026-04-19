@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'nethminethmi1215@gmail.com' ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
+    }
+
+    // USER VALIDATION
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'displayName', 'isAdmin']) && 
+             data.keys().size() == 3 &&
+             data.email is string && data.email.size() <= 150 &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.isAdmin is bool;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerified() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      
+      allow create: if isVerified() && isValidId(userId) && request.auth.uid == userId &&
+                    isValidUser(incoming()) && incoming().email == request.auth.token.email &&
+                    (incoming().isAdmin == false || request.auth.token.email == 'nethminethmi1215@gmail.com');
+                    
+      allow update: if isVerified() && isValidId(userId) && request.auth.uid == userId &&
+                    isValidUser(incoming()) &&
+                    incoming().email == existing().email &&
+                    (isAdmin() || incoming().isAdmin == existing().isAdmin) &&
+                    incoming().diff(existing()).affectedKeys().hasAny(['displayName', 'isAdmin']);
+    }
+
+    // PRODUCT VALIDATION
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'category', 'price', 'pricingUnit', 'img', 'desc', 'stock', 'createdAt', 'updatedAt']) && 
+             data.keys().size() == 9 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+             data.category is string && data.category.size() <= 150 &&
+             data.price is number && data.price >= 0 &&
+             data.pricingUnit is string && data.pricingUnit.size() <= 20 &&
+             data.img is string && data.img.size() <= 1000 &&
+             data.desc is string && data.desc.size() <= 2000 &&
+             data.stock is number && data.stock >= 0 &&
+             data.createdAt is number && data.updatedAt is number;
+    }
+
+    match /products/{productId} {
+      allow read: if true; 
+      
+      allow create: if isAdmin() && isValidId(productId) && isValidProduct(incoming()) && incoming().createdAt == request.time.toMillis();
+      
+      allow update: if isAdmin() && isValidId(productId) && isValidProduct(incoming()) &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time.toMillis();
+                    
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+
+    // ORDER VALIDATION
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'date', 'status', 'items', 'paymentMethod', 'fees', 'customer', 'createdAt']) && 
+             data.keys().size() == 8 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.date is string && data.date.size() <= 50 &&
+             data.status is string && data.status.matches('^(Pending|Delivering|Completed|Processing)$') &&
+             data.items is list && data.items.size() <= 100 &&
+             data.paymentMethod is string && data.paymentMethod.size() <= 50 &&
+             data.fees is map && data.fees.keys().hasAll(['delivery', 'service', 'tax', 'subtotal', 'total']) &&
+             data.fees.delivery is number && data.fees.tax is number && data.fees.subtotal is number && data.fees.total is number &&
+             data.customer is map && data.customer.keys().hasAll(['name', 'phone', 'email', 'address']) &&
+             data.createdAt is number;
+    }
+
+    match /orders/{orderId} {
+      allow get: if isVerified() && isValidId(orderId) && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isVerified() && isValidId(orderId) && isValidOrder(incoming()) &&
+                    incoming().userId == request.auth.uid &&
+                    incoming().createdAt == request.time.toMillis();
+                    
+      allow update: if isAdmin() && isValidId(orderId);
+    }
+  }
+}

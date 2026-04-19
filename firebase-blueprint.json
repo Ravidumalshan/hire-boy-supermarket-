@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile in the application.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "isAdmin": { "type": "boolean", "description": "System admin flag" }
+      },
+      "required": ["email", "displayName", "isAdmin"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A product available for sale.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "pricingUnit": { "type": "string" },
+        "img": { "type": "string" },
+        "desc": { "type": "string" },
+        "stock": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["name", "category", "price", "pricingUnit", "img", "desc", "stock", "createdAt", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Delivering", "Completed", "Processing"] },
+        "items": { "type": "array" },
+        "paymentMethod": { "type": "string" },
+        "fees": { "type": "object" },
+        "customer": { "type": "object" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "date", "status", "items", "paymentMethod", "fees", "customer", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Stores user profiles."
+    },
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "Store all product items."
+    },
+    "orders/{orderId}": {
+      "schema": "Order",
+      "description": "Store all customer orders."
+    }
+  }
+}
